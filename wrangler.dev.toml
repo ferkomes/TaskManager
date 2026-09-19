@@ -27,7 +27,7 @@ OPENAI_MODEL = "gpt-4o-mini"
 APP_URL = "http://localhost:8787"
 
 [triggers]
-crons = ["* * * * *", "*/15 * * * *", "0 8 * * *", "0 20 * * *"]
+crons = ["*/15 * * * *", "0 8,20 * * *"]
 
 [assets]
 directory = "./dist"
