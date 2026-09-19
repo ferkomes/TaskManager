@@ -2,7 +2,7 @@ import { ensureSchema } from './services/schema';
 import { authenticated, hash, cookie, sessionCookie } from './services/auth';
 import { beginGoogle, finishGoogle, googleRedirect } from './services/googleOAuth';
 import { MemoryStore } from './services/memory';
-import { syncStatus, processNext, enqueueEvents, hasAI, syncSources } from './services/sync';
+import { syncStatus, processNext, processBatch, enqueueEvents, hasAI, syncSources } from './services/sync';
 import { pushConfig, sendPush, validEndpoint } from './services/push';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
@@ -505,12 +505,69 @@ app.post('/api/sync/start', async c => {
   const {store,aiEngine}=getServices(c.env);await store.init(aiEngine);
   return c.json({results:await syncSources(c.env,store,aiEngine),...await syncStatus(c.env)});
 });
+app.post('/api/settings/test-ai', async c => {
+  const body = (await c.req.json().catch(() => ({}))) as { provider?: 'gemini' | 'openai'; key?: string; model?: string };
+  const provider = body.provider || c.env.AI_PROVIDER || 'gemini';
+  const openAiKey = (provider === 'openai' && body.key) ? body.key : c.env.OPENAI_API_KEY;
+  const geminiKey = (provider === 'gemini' && body.key) ? body.key : c.env.GEMINI_API_KEY;
+  const openAiModel = body.model || c.env.OPENAI_MODEL || 'gpt-4o-mini';
+  const geminiModel = body.model || c.env.GEMINI_MODEL || 'gemini-1.5-flash';
+  
+  if (provider === 'openai' && !openAiKey) return c.json({ ok: false, error: 'Nincs megadva OpenAI API kulcs.' }, 400);
+  if (provider === 'gemini' && !geminiKey) return c.json({ ok: false, error: 'Nincs megadva Gemini API kulcs.' }, 400);
+  
+  const testEngine = new AIEngine({
+    strict: true,
+    provider,
+    openAiKey,
+    geminiKey,
+    openAiModel,
+    geminiModel
+  });
+
+  try {
+    const testEvent: EventRecord = {
+      id: `test_${Date.now()}`,
+      source: 'manual',
+      sender: 'Teszt Felhasználó',
+      subject: 'Ajánlatkérés',
+      raw_content: 'Szia, érdekelne a grill rács ára holnapra, kérlek küldj ajánlatot!',
+      received_at: new Date().toISOString()
+    };
+    const res = await testEngine.analyzeEvent(testEvent);
+    return c.json({ ok: true, message: 'Kapcsolat sikeres!', output: res });
+  } catch (err) {
+    return c.json({ ok: false, error: (err as Error).message }, 200);
+  }
+});
+
 app.post('/api/sync/process', async c => {
   const {store,aiEngine}=getServices(c.env);await store.init(aiEngine);
-  await processNext(c.env,store,aiEngine);return c.json(await syncStatus(c.env));
+  await processBatch(c.env,store,aiEngine, 5);return c.json(await syncStatus(c.env));
 });
 app.post('/api/sync/retry', async c => {
   await c.env.DB.prepare("UPDATE sync_queue SET status='pending',attempts=0,lease_until=0,error=NULL WHERE status='failed' OR (status='processing' AND lease_until<?)").bind(Date.now()).run();return c.json(await syncStatus(c.env));
+});
+app.post('/api/import/whatsapp-notification', async c => {
+  const body = (await c.req.json().catch(() => ({}))) as { sender?: string; text?: string; token?: string };
+  if (!body.text || typeof body.text !== 'string') return c.json({ error: 'Üzenet szövege kötelező.' }, 400);
+  const sender = body.sender || 'WhatsApp';
+  const received = new Date().toISOString();
+  const eventId = `wa_auto_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  const event: EventRecord = {
+    id: eventId,
+    source: 'whatsapp',
+    sender,
+    subject: `${sender} üzenete`,
+    raw_content: body.text,
+    received_at: received,
+    metadata: { threadId: await hash(sender), automated: true }
+  };
+  const added = await enqueueEvents(c.env.DB, [event]);
+  const { store, aiEngine } = getServices(c.env);
+  await store.init(aiEngine);
+  await processBatch(c.env, store, aiEngine, 2);
+  return c.json({ success: true, added, eventId });
 });
 app.post('/api/import/whatsapp', async c => {
   const body=await c.req.json<{name:string;text:string}>();

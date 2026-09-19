@@ -39,14 +39,29 @@ export async function processNext(env:Env,store:DbStore,ai:AIEngine) {
   await env.DB.prepare("UPDATE sync_queue SET status='failed',error='Az elemzés háromszor megszakadt. Újrapróbálás szükséges.' WHERE status='processing' AND lease_until<? AND attempts>=3").bind(now).run();
   const job=await env.DB.prepare("UPDATE sync_queue SET status='processing',lease_until=?,attempts=attempts+1,updated_at=? WHERE event_id=(SELECT event_id FROM sync_queue WHERE (status='pending' OR (status='processing' AND lease_until<?)) AND attempts<3 ORDER BY created_at LIMIT 1) RETURNING event_id,payload,attempts").bind(now+60000,new Date().toISOString(),now).first<{event_id:string;payload:string;attempts:number}>();
   if(!job)return false;
-  try{await ingestEvent(store,ai,JSON.parse(job.payload));await env.DB.prepare("UPDATE sync_queue SET status='done',error=NULL,updated_at=? WHERE event_id=?").bind(new Date().toISOString(),job.event_id).run();}
-  catch{await env.DB.prepare("UPDATE sync_queue SET status=?,error='Az elemzés nem sikerült. Ellenőrizd az AI-kulcsot és a modellt.',updated_at=? WHERE event_id=?").bind(job.attempts>=3?'failed':'pending',new Date().toISOString(),job.event_id).run();}
+  try{
+    await ingestEvent(store,ai,JSON.parse(job.payload));
+    await env.DB.prepare("UPDATE sync_queue SET status='done',error=NULL,updated_at=? WHERE event_id=?").bind(new Date().toISOString(),job.event_id).run();
+  }catch(e){
+    const msg = (e as Error)?.message || 'Az elemzés nem sikerült.';
+    await env.DB.prepare("UPDATE sync_queue SET status=?,error=?,updated_at=? WHERE event_id=?").bind(job.attempts>=3?'failed':'pending',msg,new Date().toISOString(),job.event_id).run();
+  }
   return true;
+}
+export async function processBatch(env:Env,store:DbStore,ai:AIEngine,limit=5) {
+  let count=0;
+  for(let i=0;i<limit;i++){
+    const ok = await processNext(env,store,ai);
+    if(ok) count++; else break;
+  }
+  return count;
 }
 export async function syncStatus(env:Env){
   const counts=await env.DB.prepare("SELECT status,COUNT(*) AS count FROM sync_queue GROUP BY status").all<{status:string;count:number}>();
   const states=Object.fromEntries(counts.results.map(r=>[r.status,r.count]));
   const last=await env.DB.prepare("SELECT value FROM system_settings WHERE key='last_sync'").first<{value:string}>();
   const initial=await env.DB.prepare("SELECT value FROM system_settings WHERE key='initial_sync_complete'").first();
-  return {pending:states.pending||0,processing:states.processing||0,done:states.done||0,failed:states.failed||0,initialComplete:!!initial,last:last?JSON.parse(last.value):null};
+  const errorRows=await env.DB.prepare("SELECT DISTINCT error FROM sync_queue WHERE status='failed' AND error IS NOT NULL LIMIT 5").all<{error:string}>();
+  const errors = errorRows.results.map(r => r.error);
+  return {pending:states.pending||0,processing:states.processing||0,done:states.done||0,failed:states.failed||0,initialComplete:!!initial,last:last?JSON.parse(last.value):null,errors};
 }

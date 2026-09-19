@@ -33,7 +33,7 @@ export class AIEngine {
       try {
         return await this.callGemini(event, existingContext);
       } catch (err) {
-        if (this.strict) throw new Error('Gemini elemzés sikertelen. Ellenőrizd a kulcsot, modellt és kvótát.');
+        if (this.strict) throw new Error(`Gemini elemzés sikertelen: ${(err as Error).message}`);
         console.warn('Gemini analysis failed; using demo rules.');
       }
     }
@@ -43,7 +43,7 @@ export class AIEngine {
       try {
         return await this.callOpenAI(event, existingContext);
       } catch (err) {
-        if (this.strict) throw new Error('OpenAI elemzés sikertelen. Ellenőrizd a kulcsot, modellt és kvótát.');
+        if (this.strict) throw new Error(`OpenAI elemzés sikertelen: ${(err as Error).message}`);
         console.warn('OpenAI analysis failed; using demo rules.');
       }
     }
