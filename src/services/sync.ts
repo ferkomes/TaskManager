@@ -44,7 +44,15 @@ export async function processNext(env:Env,store:DbStore,ai:AIEngine) {
     await env.DB.prepare("UPDATE sync_queue SET status='done',error=NULL,updated_at=? WHERE event_id=?").bind(new Date().toISOString(),job.event_id).run();
   }catch(e){
     const msg = (e as Error)?.message || 'Az elemzés nem sikerült.';
-    await env.DB.prepare("UPDATE sync_queue SET status=?,error=?,updated_at=? WHERE event_id=?").bind(job.attempts>=3?'failed':'pending',msg,new Date().toISOString(),job.event_id).run();
+    const isRateLimit = msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED');
+    if (isRateLimit) {
+      // Delay retry by 20s without burning total attempts
+      await env.DB.prepare("UPDATE sync_queue SET status='pending',attempts=MAX(0, attempts-1),lease_until=?,error='Gemini percenkénti korlát elérve (15 kérés/perc). Kis türelmet, automatikusan folytatódik…',updated_at=? WHERE event_id=?")
+        .bind(now + 20000, new Date().toISOString(), job.event_id).run();
+    } else {
+      await env.DB.prepare("UPDATE sync_queue SET status=?,error=?,updated_at=? WHERE event_id=?")
+        .bind(job.attempts>=3?'failed':'pending',msg,new Date().toISOString(),job.event_id).run();
+    }
   }
   return true;
 }
