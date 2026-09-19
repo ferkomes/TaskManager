@@ -1,0 +1,36 @@
+name = "mybrain-local"
+main = "src/worker.ts"
+compatibility_date = "2026-09-19"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = true
+
+
+[[rules]]
+type = "Text"
+globs = ["**/*.sql"]
+fallthrough = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "mybrain-db"
+database_id = "6219b7f5-8ded-45a3-8668-c4966c553677"
+
+[[r2_buckets]]
+binding = "ATTACHMENTS_BUCKET"
+bucket_name = "mybrain-attachments"
+
+[vars]
+ENVIRONMENT = "development"
+AI_PROVIDER = "openai"
+GEMINI_MODEL = "gemini-3.5-flash-lite"
+OPENAI_MODEL = "gpt-4o-mini"
+APP_URL = "http://localhost:8787"
+
+[triggers]
+crons = ["* * * * *", "*/15 * * * *", "0 8 * * *", "0 20 * * *"]
+
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*"]

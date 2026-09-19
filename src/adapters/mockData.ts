@@ -1,0 +1,123 @@
+import { EventRecord, CallerContact, WaitingItem } from '../types';
+
+export function createMockEvents(): EventRecord[] { return [
+  {
+    id: 'evt_kamado_tom',
+    source: 'gmail',
+    source_id: 'gmail_msg_98124',
+    sender: 'Tom <tom@kamadopro.eu>',
+    subject: 'Kamado Grill Pro - Order #KAM-4421 Specification',
+    raw_content: 'Hi Ferenc,\n\nJust finalizing the invoice. Please note that the cast iron grids are not included in the standard package.\n\nLet me know how to proceed.\nTom',
+    received_at: new Date(Date.now() - 35 * 60 * 1000).toISOString(),
+    metadata: { orderId: 'KAM-4421' },
+  },
+  {
+    id: 'evt_airbnb_laurent',
+    source: 'airbnb',
+    source_id: 'ab_msg_55210',
+    sender: 'Laurent Mercier (Airbnb Guest)',
+    subject: 'Inquiry for Tenerife Sunset Villa #2',
+    raw_content: 'Hello! We are driving from the South airport and our flight lands late tomorrow evening. Can we check in after 23:00?\n\nThank you,\nLaurent',
+    received_at: new Date(Date.now() - 55 * 60 * 1000).toISOString(),
+    metadata: {
+      reservationId: 'RES-AB-9921',
+      guestPhone: '+34612345678',
+      propertyName: 'Tenerife Sunset Villa #2',
+    },
+  },
+  {
+    id: 'evt_bekestraktor_wl80',
+    source: 'gmail',
+    source_id: 'gmail_msg_77341',
+    sender: 'Kovács István <istvan.kovacs@agromail.hu>',
+    subject: 'BékésTraktor WL80 szállítási határidő és raklapvilla',
+    raw_content: 'Tisztelt BékésTraktor Értékesítés!\n\nÉrdeklődni szeretnék a WL80 típusú homlokrakodó pontos szállítási határidejéről, illetve kérhetnék-e hivatalos árajánlatot raklapvillás adapterrel együtt?\n\nVárom visszajelzésüket,\nKovács István',
+    received_at: new Date(Date.now() - 2 * 3600 * 1000).toISOString(),
+    metadata: { leadType: 'machinery_sales' },
+  },
+  {
+    id: 'evt_cleaning_shift',
+    source: 'cleaning',
+    source_id: 'clean_event_881',
+    sender: 'Cleaning Management Team',
+    subject: 'Turnover Cleaning Confirmed - Tenerife Sunset Villa #2',
+    raw_content: 'Scheduled Turnover Cleaning:\nProperty: Tenerife Sunset Villa #2\nWindow: Tomorrow 11:00 - 15:00\nCleaners assigned: Maria & Elena\nLinen service: Premium white package',
+    received_at: new Date(Date.now() - 4 * 3600 * 1000).toISOString(),
+    metadata: { propertyName: 'Tenerife Sunset Villa #2' },
+  },
+  {
+    id: 'evt_calendar_meeting',
+    source: 'calendar',
+    source_id: 'gcal_88992',
+    sender: 'Google Calendar',
+    subject: 'Supplier sync: European Grill Parts supply chain',
+    raw_content: 'Calendar Event: Supplier quarterly sync\nTime: Tomorrow at 14:00 - 14:30\nLocation: Google Meet\nAttendees: Tom, Ferenc',
+    received_at: new Date(Date.now() - 6 * 3600 * 1000).toISOString(),
+    metadata: { start: new Date(Date.now() + 20 * 3600 * 1000).toISOString() },
+  },
+]; }
+
+export function createCallerContacts(): CallerContact[] { return [
+  {
+    id: 'contact_1',
+    phone_number: '+34612345678',
+    guest_name: 'Laurent Mercier',
+    source: 'airbnb',
+    reservation_id: 'RES-AB-9921',
+    property_name: 'Tenerife Sunset Villa #2',
+    check_in: new Date(Date.now() - 24 * 3600 * 1000).toISOString(),
+    check_out: new Date(Date.now() + 4 * 24 * 3600 * 1000).toISOString(),
+  },
+  {
+    id: 'contact_2',
+    phone_number: '+36309876543',
+    guest_name: 'Carlos Garcia',
+    source: 'lodgify',
+    reservation_id: 'LOD-8921',
+    property_name: 'Tenerife Sunset Villa #1',
+    check_in: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
+    check_out: new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString(),
+  },
+  {
+    id: 'contact_3',
+    phone_number: '+34699887766',
+    guest_name: 'Maria Sanchez (Cleaning Lead)',
+    source: 'cleaning',
+    property_name: 'All Tenerife Properties',
+  },
+]; }
+
+export function createWaitingItems(): WaitingItem[] { return [
+  {
+    id: 'wait_1',
+    task_id: 'task_kamado_tom',
+    waiting_for: 'Tom',
+    item_description: 'Final quotation including cast-iron grids',
+    since_date: new Date(Date.now() - 24 * 3600 * 1000).toISOString(),
+    status: 'active',
+  },
+  {
+    id: 'wait_2',
+    task_id: null,
+    waiting_for: 'Lodgify Support',
+    item_description: 'API webhook whitelist for channel manager',
+    since_date: new Date(Date.now() - 48 * 3600 * 1000).toISOString(),
+    status: 'active',
+  },
+  {
+    id: 'wait_3',
+    task_id: 'task_airbnb_laurent',
+    waiting_for: 'Guest (Laurent)',
+    item_description: 'Check-in time confirmation and flight number',
+    since_date: new Date(Date.now() - 12 * 3600 * 1000).toISOString(),
+    status: 'active',
+  },
+  {
+    id: 'wait_4',
+    task_id: null,
+    waiting_for: 'Supplier (AgroParts)',
+    item_description: 'WL80 hydraulic pallet fork shipping date',
+    since_date: new Date(Date.now() - 72 * 3600 * 1000).toISOString(),
+    status: 'active',
+  },
+]; }

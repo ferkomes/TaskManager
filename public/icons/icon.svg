@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" rx="128" fill="#09090b" />
+  <!-- Minimalist Brain Matrix Nodes -->
+  <circle cx="256" cy="180" r="28" fill="#ffffff" />
+  <circle cx="180" cy="240" r="24" fill="#ffffff" />
+  <circle cx="332" cy="240" r="24" fill="#ffffff" />
+  <circle cx="200" cy="320" r="22" fill="#ffffff" />
+  <circle cx="312" cy="320" r="22" fill="#ffffff" />
+  <circle cx="256" cy="370" r="20" fill="#ffffff" />
+  <!-- Connecting Neural Synapses -->
+  <path d="M256 180 L180 240 M256 180 L332 240 M180 240 L200 320 M332 240 L312 320 M200 320 L256 370 M312 320 L256 370 M180 240 L332 240" stroke="#ffffff" stroke-width="8" stroke-linecap="round" opacity="0.9" />
+  <!-- Inner focus pulse -->
+  <circle cx="256" cy="265" r="12" fill="#3b82f6" />
+</svg>

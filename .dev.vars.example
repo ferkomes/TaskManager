@@ -1,0 +1,79 @@
+# ==============================================================================
+# MYBRAIN ENVIRONMENT & SECRETS CONFIGURATION
+# ==============================================================================
+# For local development with wrangler: copy this file to .dev.vars
+# For Cloudflare deployment: set via `npx wrangler secret put <KEY>`
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# 1. AI ENGINE (Recommended: Google Gemini API)
+# ------------------------------------------------------------------------------
+# Get your Gemini API Key at: https://aistudio.google.com/app/apikey
+# Why Gemini? Ultra-fast latency, cheap/free tier, large context for big threads,
+# and outstanding Hungarian + English bilingual comprehension.
+GEMINI_API_KEY=""
+
+# Alternatively, OpenAI API Key (if you prefer gpt-4o / gpt-4o-mini):
+# Get key at: https://platform.openai.com/api-keys
+OPENAI_API_KEY=""
+
+# ------------------------------------------------------------------------------
+# 2. GOOGLE OAUTH (Gmail & Google Calendar - READ-ONLY)
+# ------------------------------------------------------------------------------
+# Setup in Google Cloud Console (https://console.cloud.google.com/):
+# 1. Create a project named "MyBrain"
+# 2. Enable "Gmail API" and "Google Calendar API"
+# 3. Configure OAuth Consent Screen (User Type: External / Internal, add your email)
+# 4. Scopes to add (STRICTLY READ-ONLY):
+#    - https://www.googleapis.com/auth/gmail.readonly
+#    - https://www.googleapis.com/auth/calendar.readonly
+# 5. Create Credentials -> OAuth client ID -> Web application:
+#    - Authorized redirect URIs:
+#      * http://localhost:5173/api/auth/google/callback (Local dev)
+#      * https://your-worker-subdomain.workers.dev/api/auth/google/callback (Production)
+GOOGLE_CLIENT_ID=""
+GOOGLE_CLIENT_SECRET=""
+# OAuth refresh token must be obtained separately; this demo has no OAuth callback route.
+
+# Stored after initial OAuth consent (refresh token allows automated background polling):
+GOOGLE_REFRESH_TOKEN=""
+
+# ------------------------------------------------------------------------------
+# 3. LODGIFY API (Bookings, Guests, Messages & Airbnb relayed messages)
+# ------------------------------------------------------------------------------
+# Setup in Lodgify (https://app.lodgify.com/settings/api):
+# 1. Go to Settings -> Public API
+# 2. Generate a new API Key
+# 3. Paste here:
+LODGIFY_API_KEY=""
+
+# ------------------------------------------------------------------------------
+# 4. CLEANING CALENDAR (iCal .ics URL)
+# ------------------------------------------------------------------------------
+# Can be an exported .ics link from Lodgify, Airbnb, Turno, or Google Calendar:
+CLEANING_CALENDAR_ICS_URL=""
+
+# ------------------------------------------------------------------------------
+# 5. WHATSAPP BUSINESS / CLOUD API (Read-only Webhook)
+# ------------------------------------------------------------------------------
+# Setup in Meta for Developers (https://developers.facebook.com/apps/):
+# 1. WhatsApp -> Configuration -> Webhook
+# 2. Webhook URL: https://your-worker.workers.dev/api/webhooks/whatsapp
+# 3. Verify Token: Enter any random secret string below
+WHATSAPP_VERIFY_TOKEN="mybrain_whatsapp_verify_token_change_me"
+WHATSAPP_ACCESS_TOKEN=""
+WHATSAPP_APP_SECRET=""
+
+# ------------------------------------------------------------------------------
+# 6. WEB PUSH NOTIFICATIONS (VAPID Keys for Morning/Evening & Urgent Alerts)
+# ------------------------------------------------------------------------------
+# Generate with: `npx web-push generate-vapid-keys`
+VAPID_PUBLIC_KEY=""
+VAPID_PRIVATE_KEY=""
+VAPID_SUBJECT="mailto:admin@mybrain.internal"
+
+# ------------------------------------------------------------------------------
+# 7. INTERNAL SECURITY & ENCRYPTION
+# ------------------------------------------------------------------------------
+# Secret key used to encrypt cached tokens and protect webhook ingestion
+APP_SECRET=""
