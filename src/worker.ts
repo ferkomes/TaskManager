@@ -428,7 +428,7 @@ app.get('/api/settings', async c => {
       autoAccept: env.ZOOFY_AUTO_ACCEPT_ENABLED !== 'false',
       minPrice: env.ZOOFY_MIN_PRICE || '150',
       maxDistanceKm: env.ZOOFY_MAX_DISTANCE_KM || '15',
-      keywords: env.ZOOFY_KEYWORDS || 'meubel, bútor, ikea, pax, kast, tafel, stoel, bed, montage, monteren, assembly, villanyszerelés, elektra, elektricien, loodgieter',
+      keywords: env.ZOOFY_KEYWORDS !== undefined ? env.ZOOFY_KEYWORDS : '',
       whatsappTemplate: env.ZOOFY_WHATSAPP_TEMPLATE || 'Beste, bedankt voor de opdracht via Zoofy! Ik heb de klus zojuist geaccepteerd. Schikt het opgegeven moment voor u, of zullen we even overleggen over een andere dag/tijd die u beter past? Met vriendelijke groet, Ferenc',
       aiInstruction: env.ZOOFY_AI_INSTRUCTION || 'Bútor összeszerelés és villanyszerelés munkák automatikus elfogadása 150 EUR felett és 15 km-en belül.'
     }});

@@ -52,7 +52,7 @@ export function Settings({run,refresh}:{run:Run;refresh:()=>Promise<void>}){
   const [zoofyAutoAccept, setZoofyAutoAccept] = useState(true);
   const [zoofyMinPrice, setZoofyMinPrice] = useState('150');
   const [zoofyMaxDist, setZoofyMaxDist] = useState('15');
-  const [zoofyKeywords, setZoofyKeywords] = useState('meubel, bútor, ikea, pax, kast, villanyszerelés, elektra, loodgieter');
+  const [zoofyKeywords, setZoofyKeywords] = useState('');
   const [zoofyTemplate, setZoofyTemplate] = useState('Beste, bedankt voor de opdracht via Zoofy! Ik heb de klus zojuist geaccepteerd. Schikt het opgegeven moment voor u, of zullen we even overleggen over egy andere dag/tijd die u beter past? Met vriendelijke groet, Ferenc');
   const [zoofyInstruction, setZoofyInstruction] = useState('Bútor összeszerelés és villanyszerelés munkák automatikus elfogadása 150 EUR felett és 15 km-en belül.');
   const [zoofyStatusMsg, setZoofyStatusMsg] = useState(''), [tokenStatusMsg, setTokenStatusMsg] = useState('');
@@ -63,7 +63,7 @@ export function Settings({run,refresh}:{run:Run;refresh:()=>Promise<void>}){
       setZoofyAutoAccept(data.zoofy.autoAccept);
       setZoofyMinPrice(data.zoofy.minPrice || '150');
       setZoofyMaxDist(data.zoofy.maxDistanceKm || '15');
-      setZoofyKeywords(data.zoofy.keywords || 'meubel, bútor, ikea, pax, kast, villanyszerelés, elektra, loodgieter');
+      setZoofyKeywords(data.zoofy.keywords !== undefined ? data.zoofy.keywords : '');
       setZoofyTemplate(data.zoofy.whatsappTemplate || 'Beste, bedankt voor de opdracht via Zoofy! Ik heb de klus zojuist geaccepteerd. Schikt het opgegeven moment voor u, of zullen we even overleggen over een andere dag/tijd die u beter past? Met vriendelijke groet, Ferenc');
       setZoofyInstruction(data.zoofy.aiInstruction || 'Bútor összeszerelés és villanyszerelés munkák automatikus elfogadása 150 EUR felett és 15 km-en belül.');
     }}
