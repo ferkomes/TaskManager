@@ -1,3 +1,34 @@
+
+export function playUrgentJobAlert() {
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const now = ctx.currentTime;
+    
+    // Distinctive 3-tone cash/success chime
+    const tones = [
+      { freq: 784, start: 0, duration: 0.12 },     // G5
+      { freq: 1046.5, start: 0.12, duration: 0.14 }, // C6
+      { freq: 1567.98, start: 0.26, duration: 0.35 } // G6 (Loud & Clear)
+    ];
+
+    tones.forEach(t => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(t.freq, now + t.start);
+      gain.gain.setValueAtTime(0.9, now + t.start);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + t.start + t.duration);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + t.start);
+      osc.stop(now + t.start + t.duration);
+    });
+  } catch (e) {
+    console.warn('Audio alert could not play:', e);
+  }
+}
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Brain, Plus, Search, Check, Clock, FileText, ArrowRight, RefreshCw } from 'lucide-react';
@@ -71,6 +102,11 @@ function App() {
 
   async function refresh() {
     const [taskData, waitingData] = await Promise.all([api<{tasks: TaskRecord[]}>('/tasks'), api<{waiting_items: WaitingItem[]}>('/waiting')]);
+    const previousTaskIds = new Set(tasks.map(t => t.id));
+    const hasNewAutoAccepted = taskData.tasks.some(t => !previousTaskIds.has(t.id) && t.title.includes('ZOOFY [AUTO-ELFOGADVA]'));
+    if (tasks.length > 0 && hasNewAutoAccepted) {
+      playUrgentJobAlert();
+    }
     setTasks(taskData.tasks); setWaiting(waitingData.waiting_items);
   }
   useEffect(() => { refresh().catch(e => setError(e.message)).finally(() => setLoading(false)); }, []);

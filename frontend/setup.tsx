@@ -214,6 +214,32 @@ export function Settings({run,refresh}:{run:Run;refresh:()=>Promise<void>}){
             <button className="primary">Szabályok Mentése</button>
             <button 
               type="button" 
+              onClick={() => {
+                try {
+                  const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+                  if (AudioCtx) {
+                    const ctx = new AudioCtx();
+                    const now = ctx.currentTime;
+                    [784, 1046.5, 1567.98].forEach((f, idx) => {
+                      const osc = ctx.createOscillator();
+                      const gain = ctx.createGain();
+                      osc.type = 'triangle';
+                      osc.frequency.setValueAtTime(f, now + idx * 0.12);
+                      gain.gain.setValueAtTime(0.9, now + idx * 0.12);
+                      gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.12 + (idx === 2 ? 0.35 : 0.12));
+                      osc.connect(gain);
+                      gain.connect(ctx.destination);
+                      osc.start(now + idx * 0.12);
+                      osc.stop(now + idx * 0.12 + 0.4);
+                    });
+                  }
+                } catch(e) {}
+              }}
+            >
+              🔊 Jelzőhang meghallgatása
+            </button>
+            <button 
+              type="button" 
               disabled={zoofyTesting}
               onClick={async () => {
                 setZoofyTesting(true);
