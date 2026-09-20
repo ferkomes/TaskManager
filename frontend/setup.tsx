@@ -209,11 +209,11 @@ export function Settings({run,refresh}:{run:Run;refresh:()=>Promise<void>}){
             <input 
               value={zoofyKeywords} 
               onChange={e => setZoofyKeywords(e.target.value)} 
-              placeholder="meubel, bútor, ikea, pax, villanyszerelés, elektra, loodgieter, szerelés" 
+              placeholder="Üresen hagyva = MINDEN munkatípust figyel és elfogad!" 
             />
           </label>
           <p className="tag-input-hint">
-            💡 <em>Tipp: Ide bármikor beírhatsz új területeket (pl. villanyszerelés, elektra, konyha, csapcsere), és a rendszer azonnal azokat is figyelni és fogadni fogja!</em>
+            💡 <em>Tipp: <strong>Ha üresen hagyod a mezőt, a rendszer MINDEN munkát figyel és elfogad</strong> az ár/távolság alapján, a besorolást pedig az AI végzi a megadott leírásod szerint!</em>
           </p>
 
           <label>AI Szabály leírása (Prompt)

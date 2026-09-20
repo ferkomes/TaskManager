@@ -188,3 +188,21 @@ test('Zoofy adapter respects custom keywords (e.g. villanyszerelés / elektra) a
   assert.match(analysis.title, /Villanyszerelés/);
   assert.match(analysis.draft_reply, /elektra klus/);
 });
+
+test('Zoofy adapter with empty keywords accepts ALL work types based on price & distance', async () => {
+  const { ZoofyAdapter } = await import('../src/adapters/zoofy');
+  const allJobsAdapter = new ZoofyAdapter({
+    minPrice: 100,
+    maxDistanceKm: 20,
+    keywords: '' // Empty string: ALL work types accepted!
+  });
+
+  const randomJobText = 'Nieuwe klus: Tuinonderhoud en schilderwerk in Diemen (6 km) - Verdien €140';
+  const event = allJobsAdapter.createEvent('Zoofy Pro', randomJobText);
+
+  assert.equal(event.source, 'zoofy');
+  assert.equal(event.metadata?.isAutoAccepted, true);
+  assert.equal(event.metadata?.price, 140);
+  assert.equal(event.metadata?.distanceKm, 6);
+  assert.equal(event.metadata?.zoofyDetails?.isMatchingWorkType, true);
+});

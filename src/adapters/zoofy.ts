@@ -51,8 +51,12 @@ export class ZoofyAdapter extends DataSourceAdapter {
     this.minPrice = Number(config.minPrice || 150);
     this.maxDistanceKm = Number(config.maxDistanceKm || 15);
     
-    const rawKeywords = config.keywords || 'meubel, bútor, ikea, pax, kast, tafel, stoel, bed, montage, monteren, assembly, villanyszerelés, elektra, elektricien, loodgieter';
-    this.keywords = rawKeywords.split(',').map(k => k.trim().toLowerCase()).filter(Boolean);
+    // If keywords is explicitly empty (""), allow ALL work types!
+    if (config.keywords !== undefined) {
+      this.keywords = config.keywords.split(',').map(k => k.trim().toLowerCase()).filter(Boolean);
+    } else {
+      this.keywords = ['meubel', 'bútor', 'ikea', 'pax', 'kast', 'tafel', 'stoel', 'bed', 'montage', 'monteren', 'assembly', 'villanyszerelés', 'elektra', 'elektricien', 'loodgieter'];
+    }
 
     this.whatsappTemplate = config.whatsappTemplate || 
       'Beste, bedankt voor de opdracht via Zoofy! Ik heb de klus zojuist geaccepteerd. Schikt het opgegeven moment voor u, of zullen we even overleggen over een andere dag/tijd die u beter past? Met vriendelijke groet, Ferenc';
@@ -80,8 +84,9 @@ export class ZoofyAdapter extends DataSourceAdapter {
     const lower = text.toLowerCase();
 
     // 1. Check keyword matches
-    const matchedKeywords = this.keywords.filter(kw => lower.includes(kw));
-    const isMatchingWorkType = matchedKeywords.length > 0;
+    // 1. Check keyword matches (if keywords array is empty, match ALL work types!)
+    const matchedKeywords = this.keywords.length === 0 ? [] : this.keywords.filter(kw => lower.includes(kw));
+    const isMatchingWorkType = this.keywords.length === 0 || matchedKeywords.length > 0;
 
     // Determine readable service category name
     let service = 'Klus / Megbízás';
