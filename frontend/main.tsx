@@ -24,6 +24,12 @@ export function getEventDirectLink(event?: EventRecord) {
       url: event.metadata?.htmlLink || 'https://calendar.google.com'
     };
   }
+  if (event.source === 'zoofy') {
+    return {
+      label: 'Megnyitás Zoofy-ban ↗',
+      url: 'https://vakman.zoofy.nl'
+    };
+  }
   if (event.source === 'whatsapp') {
     const cleanPhone = (event.sender || '').replace(/[^0-9+]/g, '');
     const url = cleanPhone.length >= 8 ? `https://wa.me/${cleanPhone.replace('+', '')}` : 'https://web.whatsapp.com';

@@ -37,6 +37,14 @@ export function Settings({run,refresh}:{run:Run;refresh:()=>Promise<void>}){
       <details><summary>📱 1. Teljesen Automata továbbítás (MacroDroid / Tasker Androidon)</summary><p className="muted">Nem kell exportálnod semmit! Telepítsd az ingyenes <strong>MacroDroid</strong> vagy <strong>Tasker</strong> appot Androidra. Állíts be egy triggert: <em>Értesítés érkezett (WhatsApp)</em> → Akció: <em>HTTP POST</em> az alábbi címre:</p><code className="callback-url">https://mybrain.ferkomes.workers.dev/api/import/whatsapp-notification</code><p className="muted">Body (JSON): <code>{"{\"sender\":\"[notification_title]\", \"text\":\"[notification_text]\"}"}</code></p></details>
       <details><summary>📂 2. Kézi megosztás vagy .txt importálás</summary><p className="muted">WhatsApp → Beszélgetés → Menü → Továbbiak → Beszélgetés exportálása (Média nélkül) → Megosztás a MyBrain-nel, vagy az Importálás fülön tallózd be a .txt fájlt.</p></details>
     </section>
+    <section className="setup-step"><span className="step-number">4</span><h3>Zoofy Megbízások & Automata Elfogadás</h3>
+      <p className="muted">Automata szabály: <strong>Bútor összeszerelés</strong> (Meubelmontage) + <strong> legalább €150</strong> + <strong>legfeljebb 15 km</strong> távolság esetén a rendszer azonnal kiemelt, sürgős feladatként rögzíti és előkészíti a holland egyeztető WhatsApp üzenetet.</p>
+      <details><summary>📱 MacroDroid / Tasker beállítás Zoofy értesítésekhez</summary>
+        <p className="muted">Androidon állíts be egy értesítés-figyelőt a Zoofy appra:</p>
+        <code className="callback-url">https://mybrain.ferkomes.workers.dev/api/import/zoofy-notification</code>
+        <p className="muted">HTTP Body (JSON): <code>{"{\"sender\":\"[notification_title]\", \"text\":\"[notification_text]\", \"app\":\"[notification_package_name]\"}"}</code></p>
+      </details>
+    </section>
     <label className="checkbox-label"><input type="checkbox" checked={setup?.learnDrafts||false} onChange={e=>void run(async()=>{await api('/memory/preferences',{learnDrafts:e.target.checked});await load();})}/> Tanuljon a mentett választervezeteimből rövid példákkal</label><p className="muted">Legfeljebb 100 rövid példa marad meg; egy elemzés legfeljebb 3 releváns példát kap. A Memória nézetben keresheted és törölheted őket. A bejövő üzenetekből nem lesz automatikusan személyes szabály.</p>
     {setup&&<SyncProgress refresh={refresh} autoStart={setup.aiReady&&setup.googleReady&&!setup.sync.initialComplete}/>}{message&&<p className="notice" role="status">{message}</p>}
     <div className="actions"><button onClick={()=>void run(async()=>{await api('/auth/logout',{});location.reload();})}>Kijelentkezés ezen az eszközön</button></div>

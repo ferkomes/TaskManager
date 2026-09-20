@@ -17,6 +17,7 @@ export type EventSource =
   | 'airbnb' 
   | 'cleaning' 
   | 'whatsapp' 
+  | 'zoofy' 
   | 'manual';
 
 export interface EventRecord {
@@ -120,6 +121,10 @@ export interface Env {
   GOOGLE_REFRESH_TOKEN?: string;
   LODGIFY_API_KEY?: string;
   CLEANING_CALENDAR_ICS_URL?: string;
+  ZOOFY_API_KEY?: string;
+  ZOOFY_AUTO_ACCEPT_ENABLED?: string;
+  ZOOFY_MIN_PRICE?: string;
+  ZOOFY_MAX_DISTANCE_KM?: string;
   WHATSAPP_APP_SECRET?: string;
   WHATSAPP_VERIFY_TOKEN?: string;
   WHATSAPP_ACCESS_TOKEN?: string;

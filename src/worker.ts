@@ -19,6 +19,7 @@ import { GoogleCalendarAdapter } from './adapters/calendar';
 import { LodgifyAdapter } from './adapters/lodgify';
 import { CleaningCalendarAdapter } from './adapters/cleaning';
 import { WhatsAppAdapter } from './adapters/whatsapp';
+import { ZoofyAdapter } from './adapters/zoofy';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -549,25 +550,62 @@ app.post('/api/sync/retry', async c => {
   await c.env.DB.prepare("UPDATE sync_queue SET status='pending',attempts=0,lease_until=0,error=NULL WHERE status='failed' OR (status='processing' AND lease_until<?)").bind(Date.now()).run();return c.json(await syncStatus(c.env));
 });
 app.post('/api/import/whatsapp-notification', async c => {
-  const body = (await c.req.json().catch(() => ({}))) as { sender?: string; text?: string; token?: string };
+  const body = (await c.req.json().catch(() => ({}))) as { sender?: string; text?: string; app?: string; token?: string };
   if (!body.text || typeof body.text !== 'string') return c.json({ error: 'Üzenet szövege kötelező.' }, 400);
   const sender = body.sender || 'WhatsApp';
-  const received = new Date().toISOString();
-  const eventId = `wa_auto_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-  const event: EventRecord = {
-    id: eventId,
-    source: 'whatsapp',
-    sender,
-    subject: `${sender} üzenete`,
-    raw_content: body.text,
-    received_at: received,
-    metadata: { threadId: await hash(sender), automated: true }
-  };
+  const appName = (body.app || '').toLowerCase();
+  const isZoofy = appName.includes('zoofy') || sender.toLowerCase().includes('zoofy') || body.text.toLowerCase().includes('zoofy') || /meubelmontage|klusjes|zoofy/i.test(body.text);
+
+  let event: EventRecord;
+  if (isZoofy) {
+    const zoofy = new ZoofyAdapter({
+      apiKey: c.env.ZOOFY_API_KEY,
+      minPrice: Number(c.env.ZOOFY_MIN_PRICE || 150),
+      maxDistanceKm: Number(c.env.ZOOFY_MAX_DISTANCE_KM || 15)
+    });
+    event = zoofy.createEvent(sender, body.text);
+  } else {
+    const received = new Date().toISOString();
+    const eventId = `wa_auto_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    event = {
+      id: eventId,
+      source: 'whatsapp',
+      sender,
+      subject: `${sender} üzenete`,
+      raw_content: body.text,
+      received_at: received,
+      metadata: { threadId: await hash(sender), automated: true }
+    };
+  }
   const added = await enqueueEvents(c.env.DB, [event]);
   const { store, aiEngine } = getServices(c.env);
   await store.init(aiEngine);
   await processBatch(c.env, store, aiEngine, 2);
-  return c.json({ success: true, added, eventId });
+  return c.json({ success: true, added, eventId: event.id, source: event.source, metadata: event.metadata });
+});
+
+app.post('/api/import/zoofy-notification', async c => {
+  const body = (await c.req.json().catch(() => ({}))) as { sender?: string; text?: string; app?: string };
+  if (!body.text || typeof body.text !== 'string') return c.json({ error: 'Értesítés szövege kötelező.' }, 400);
+  const sender = body.sender || 'Zoofy Pro';
+  const zoofy = new ZoofyAdapter({
+    apiKey: c.env.ZOOFY_API_KEY,
+    minPrice: Number(c.env.ZOOFY_MIN_PRICE || 150),
+    maxDistanceKm: Number(c.env.ZOOFY_MAX_DISTANCE_KM || 15)
+  });
+  const event = zoofy.createEvent(sender, body.text);
+  const added = await enqueueEvents(c.env.DB, [event]);
+  const { store, aiEngine } = getServices(c.env);
+  await store.init(aiEngine);
+  await processBatch(c.env, store, aiEngine, 2);
+  return c.json({ 
+    success: true, 
+    added, 
+    eventId: event.id, 
+    auto_accepted: event.metadata?.isAutoAccepted,
+    whatsapp_template: event.metadata?.whatsappTemplate,
+    details: event.metadata?.zoofyDetails 
+  });
 });
 app.post('/api/import/whatsapp', async c => {
   const body=await c.req.json<{name:string;text:string}>();

@@ -132,3 +132,32 @@ test('explicit draft learning stores only the edited owner example and can be di
   const data=await (await req('/api/memory')).json() as any;assert.equal(data.examples.length,1);assert.match(data.examples[0].example,/send the price separately/);
   await req('/api/memory/preferences',{learnDrafts:false});await req('/api/tasks/task_airbnb_laurent/commander',{action:'draft',draftEdit:'Dear Laurent, confirmed.'});assert.equal(((await (await req('/api/memory')).json()) as any).examples.length,1);
 });
+
+test('Zoofy furniture leads >=150 EUR and <=15 km are auto-accepted with CRITICAL priority and Dutch draft reply', async () => {
+  const { ZoofyAdapter } = await import('../src/adapters/zoofy');
+  const adapter = new ZoofyAdapter({ minPrice: 150, maxDistanceKm: 15 });
+  
+  // Qualifying notification: Meubelmontage, €180, 8 km
+  const qualifyingText = 'Nieuwe klus: Meubelmontage (IKEA PAX kast) in Amsterdam (8 km) - Verdien €180';
+  const event = adapter.createEvent('Zoofy Pro', qualifyingText);
+  
+  assert.equal(event.source, 'zoofy');
+  assert.equal(event.metadata?.isAutoAccepted, true);
+  assert.equal(event.metadata?.price, 180);
+  assert.equal(event.metadata?.distanceKm, 8);
+  assert.match(event.metadata?.whatsappTemplate, /Beste, bedankt voor de opdracht via Zoofy/);
+  
+  const ai = new AIEngine();
+  const analysis = ai.fallbackAnalysis(event);
+  assert.equal(analysis.action_required, true);
+  assert.equal(analysis.priority, 'CRITICAL');
+  assert.equal(analysis.suggested_status, 'now');
+  assert.equal(analysis.project_category, 'Klusjes / Zoofy');
+  assert.match(analysis.draft_reply, /Beste, bedankt voor de opdracht via Zoofy/);
+  assert.match(analysis.title, /AUTO-ELFOGADVA/);
+
+  // Non-qualifying notification: Low price (€80)
+  const lowPriceText = 'Nieuwe klus: Meubelmontage in Utrecht (5 km) - Verdien €80';
+  const nonQualifyingEvent = adapter.createEvent('Zoofy Pro', lowPriceText);
+  assert.equal(nonQualifyingEvent.metadata?.isAutoAccepted, false);
+});

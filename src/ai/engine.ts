@@ -15,13 +15,13 @@ export class AIEngine {
     openAiKey?: string;
     geminiModel?: string;
     openAiModel?: string;
-  }) {
-    this.strict = config.strict || false;
-    this.provider = config.provider || 'gemini';
-    this.geminiKey = config.geminiKey;
-    this.openAiKey = config.openAiKey;
-    this.geminiModel = config.geminiModel || 'gemini-3.5-flash-lite';
-    this.openAiModel = config.openAiModel || 'gpt-4o-mini';
+  } = {}) {
+    this.strict = config?.strict || false;
+    this.provider = config?.provider || 'gemini';
+    this.geminiKey = config?.geminiKey;
+    this.openAiKey = config?.openAiKey;
+    this.geminiModel = config?.geminiModel || 'gemini-3.5-flash-lite';
+    this.openAiModel = config?.openAiModel || 'gpt-4o-mini';
   }
 
   /**
@@ -148,6 +148,18 @@ ${event.raw_content}
 
 ${existingContext ? `Existing Context/History: ${existingContext}` : ''}
 
+
+SPECIAL RULE FOR ZOOFY / HANDYMAN LEADS (Bútor / Meubelmontage / Klusjes):
+If the event is from Zoofy or is a handyman/assembly job:
+- Check if it is furniture assembly (Meubelmontage / bútor / IKEA / pax / bed / kast / tafel / monteren).
+- If it is furniture assembly AND price >= €150 AND distance <= 15 km, mark as AUTO-ACCEPTED high priority job:
+  * title: '🎯 ZOOFY [AUTO-ELFOGADVA]: Bútor szerelés (€[price], [distance] km)'
+  * priority: 'CRITICAL', suggested_status: 'now'
+  * project_category: 'Klusjes / Zoofy'
+  * draft_reply: Polite Dutch WhatsApp text to client: 'Beste, bedankt voor de opdracht via Zoofy! Ik heb de klus zojuist geaccepteerd. Schikt het opgegeven moment voor u, of zullen we even overleggen over een andere dag/tijd die u beter past? Met vriendelijke groet, Ferenc'
+  * suggested_action: 'Időpont egyeztetés az ügyféllel WhatsAppon'
+  * next_step: 'Küldd el a WhatsApp üzenetet az ügyfélnek az időpont megerősítéséhez.'
+
 PRIORITIZATION RULES:
 Priority based on: urgency + deadline + financial impact + guest/customer impact + dependency + unanswered messages + promises made.
 - CRITICAL: Active guest emergencies (locked out, leak), immediate deadline today with major financial impact.
@@ -182,6 +194,39 @@ RESPONSE JSON SCHEMA (Return strictly this JSON object):
   fallbackAnalysis(event: EventRecord): AIAnalysisOutput {
     const text = `${event.subject || ''} ${event.raw_content}`.toLowerCase();
     const sender = event.sender.toLowerCase();
+
+    // Zoofy Lead Auto-Accept & Processing
+    if (event.source === 'zoofy' || text.includes('zoofy') || sender.includes('zoofy')) {
+      const details = event.metadata?.zoofyDetails;
+      const isFurniture = details?.isFurniture ?? /meubel|bútor|kast|ikea|pax|tafel|stoel|bed|montage|monteren|assembly/i.test(text);
+      const price = details?.price ?? (text.match(/€\s*(\d+)/)?.[1] ? Number(text.match(/€\s*(\d+)/)?.[1]) : null);
+      const distanceKm = details?.distanceKm ?? (text.match(/(\d+(?:\.\d+)?)\s*km/)?.[1] ? Number(text.match(/(\d+(?:\.\d+)?)\s*km/)?.[1]) : null);
+      const meetsAuto = details?.meetsAutoAcceptCriteria ?? (isFurniture && (price === null || price >= 150) && (distanceKm === null || distanceKm <= 15));
+
+      return {
+        action_required: true,
+        title: meetsAuto
+          ? '🎯 ZOOFY [AUTO-ELFOGADVA]: Bútor szerelés (' + (price ? '€' + price : '€150+') + ', ' + (distanceKm ? distanceKm + ' km' : '<15 km') + ')'
+          : 'Zoofy megbízás: ' + event.raw_content.slice(0, 50) + '...',
+        summary: meetsAuto
+          ? 'Zoofy megbízás automatikusan elfogadva: Bútor szerelés, €' + (price || '150+') + ' (>=150€), ' + (distanceKm ? distanceKm + ' km' : 'közel') + ' (<=15km). Eredeti: ' + event.raw_content
+          : 'Új Zoofy megbízási értesítés: ' + event.raw_content,
+        project_category: 'Klusjes / Zoofy',
+        priority: meetsAuto ? 'CRITICAL' : 'HIGH',
+        deadline: new Date(Date.now() + 2 * 3600 * 1000).toISOString(),
+        suggested_action: 'Időpont egyeztetés az ügyféllel WhatsAppon',
+        draft_reply: 'Beste, bedankt voor de opdracht via Zoofy! Ik heb de klus zojuist geaccepteerd. Schikt het opgegeven moment voor u, of zullen we even overleggen over een andere dag/tijd die u beter past? Met vriendelijke groet, Ferenc',
+        next_step: 'Nyisd meg a WhatsAppot és küldd el az egyeztető üzenetet az ügyfélnek.',
+        waiting_for: 'Zoofy Ügyfél (Időpont visszaigazolás)',
+        people_involved: ['Zoofy Ügyfél'],
+        reservation_property: null,
+        confidence: 0.95,
+        priority_reason: meetsAuto
+          ? 'Kiemelten jövedelmező közeli megbízás (>=150€, <=15km), azonnali egyeztetés szükséges.'
+          : 'Új beérkezett megbízás, áttekintést igényel.',
+        suggested_status: 'now'
+      };
+    }
 
     if (/locked out|burst pipe|water leak|csőtörés|kizártuk|tűz van/.test(text)) {
       return {action_required:true,title:'Urgent property issue: contact the guest',summary:event.raw_content.slice(0,200),project_category:'Airbnb / Villa',priority:'CRITICAL',deadline:new Date().toISOString(),suggested_action:'Contact the guest and verify the emergency',draft_reply:'I have received your message and will check the situation immediately.',next_step:'Review the original message and contact the guest or local maintenance',waiting_for:null,people_involved:[event.sender],reservation_property:event.metadata?.propertyName || null,confidence:0.8,priority_reason:'The message describes a lockout or property emergency.',suggested_status:'now'};
