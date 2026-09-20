@@ -2,7 +2,29 @@ import {useEffect,useRef,useState} from 'react';
 import {api} from './api';
 import type {MemoryExample} from '../src/services/memory';
 interface SyncState {pending:number;processing:number;done:number;failed:number;initialComplete:boolean;errors?:string[];last:null|{at:string;results:{source:string;success:boolean;count:number;message?:string}[]}}
-interface SetupState {provider:string;model?:string;configured:Record<string,boolean>;aiReady:boolean;googleReady:boolean;googleConfigured:boolean;callbackUrl:string;learnDrafts:boolean;sync:SyncState;demo:boolean}
+interface SetupState {
+  provider: string;
+  model?: string;
+  configured: Record<string, boolean>;
+  aiReady: boolean;
+  googleReady: boolean;
+  googleConfigured: boolean;
+  callbackUrl: string;
+  learnDrafts: boolean;
+  sync: SyncState;
+  demo: boolean;
+  zoofy?: {
+    configured: boolean;
+    phone: string;
+    hasToken: boolean;
+    autoAccept: boolean;
+    minPrice: string;
+    maxDistanceKm: string;
+    keywords: string;
+    whatsappTemplate: string;
+    aiInstruction: string;
+  };
+}
 type Run=(action:()=>Promise<void>)=>Promise<void>;
 
 export function SignIn({onReady}:{onReady:()=>void}){
@@ -25,7 +47,26 @@ export function SyncProgress({refresh,autoStart=false}:{refresh:()=>Promise<void
 
 export function Settings({run,refresh}:{run:Run;refresh:()=>Promise<void>}){
   const [setup,setSetup]=useState<SetupState|null>(null),[provider,setProvider]=useState('openai'),[model,setModel]=useState(''),[key,setKey]=useState(''),[message,setMessage]=useState(''),[aiTestMessage,setAiTestMessage]=useState(''),[aiTesting,setAiTesting]=useState(false),[google,setGoogle]=useState({GOOGLE_CLIENT_ID:'',GOOGLE_CLIENT_SECRET:''});
-  async function load(){const data=await api<SetupState>('/settings');setSetup(data);setProvider(data.provider);setModel(data.model||'');}
+  const [zoofyPhone, setZoofyPhone] = useState('');
+  const [zoofyCode, setZoofyCode] = useState('');
+  const [zoofyAutoAccept, setZoofyAutoAccept] = useState(true);
+  const [zoofyMinPrice, setZoofyMinPrice] = useState('150');
+  const [zoofyMaxDist, setZoofyMaxDist] = useState('15');
+  const [zoofyKeywords, setZoofyKeywords] = useState('meubel, bútor, ikea, pax, kast, villanyszerelés, elektra, loodgieter');
+  const [zoofyTemplate, setZoofyTemplate] = useState('Beste, bedankt voor de opdracht via Zoofy! Ik heb de klus zojuist geaccepteerd. Schikt het opgegeven moment voor u, of zullen we even overleggen over egy andere dag/tijd die u beter past? Met vriendelijke groet, Ferenc');
+  const [zoofyInstruction, setZoofyInstruction] = useState('Bútor összeszerelés és villanyszerelés munkák automatikus elfogadása 150 EUR felett és 15 km-en belül.');
+  const [zoofyStatusMsg, setZoofyStatusMsg] = useState('');
+  const [zoofyTesting, setZoofyTesting] = useState(false);
+  async function load(){const data=await api<SetupState>('/settings');setSetup(data);setProvider(data.provider);setModel(data.model||'');
+    if (data.zoofy) {
+      setZoofyPhone(data.zoofy.phone || '');
+      setZoofyAutoAccept(data.zoofy.autoAccept);
+      setZoofyMinPrice(data.zoofy.minPrice || '150');
+      setZoofyMaxDist(data.zoofy.maxDistanceKm || '15');
+      setZoofyKeywords(data.zoofy.keywords || 'meubel, bútor, ikea, pax, kast, villanyszerelés, elektra, loodgieter');
+      setZoofyTemplate(data.zoofy.whatsappTemplate || 'Beste, bedankt voor de opdracht via Zoofy! Ik heb de klus zojuist geaccepteerd. Schikt het opgegeven moment voor u, of zullen we even overleggen over een andere dag/tijd die u beter past? Met vriendelijke groet, Ferenc');
+      setZoofyInstruction(data.zoofy.aiInstruction || 'Bútor összeszerelés és villanyszerelés munkák automatikus elfogadása 150 EUR felett és 15 km-en belül.');
+    }}
   useEffect(()=>{void run(load);const url=new URL(location.href);if(url.searchParams.get('google')==='connected')setMessage('A Google-fiók csatlakoztatva.');if(url.searchParams.get('google')==='error')setMessage(url.searchParams.get('reason')||'A kapcsolódás nem sikerült.');if(url.searchParams.has('google')){url.searchParams.delete('google');url.searchParams.delete('reason');history.replaceState(null,'',url);}},[]);
   return <section className="panel setup"><h2>Kapcsolatok és beállítások</h2><p className="muted">Válassz AI-t, engedélyezd a források olvasását, és elkészül a személyes teendőlistád.</p>
     <section className="setup-step"><span className="step-number">1</span><h3>Az AI-d</h3><form onSubmit={e=>{e.preventDefault();void run(async()=>{const changes:Record<string,string>={AI_PROVIDER:provider};if(key.trim())changes[provider==='openai'?'OPENAI_API_KEY':'GEMINI_API_KEY']=key.trim();if(model.trim())changes[provider==='openai'?'OPENAI_MODEL':'GEMINI_MODEL']=model.trim();await api('/settings',changes);setKey('');await load();setMessage('AI-beállítások elmentve.');});}}><div className="field-row"><label>AI-szolgáltató<select value={provider} onChange={e=>{setProvider(e.target.value);setModel('');setKey('');}}><option value="openai">OpenAI</option><option value="gemini">Google Gemini (Ingyenes & Gyors)</option></select></label><label>Modell neve<input value={model} onChange={e=>setModel(e.target.value)} placeholder={provider==='openai'?'gpt-4o-mini':'gemini-1.5-flash'}/></label></div><label>{provider==='openai'?'OpenAI':'Gemini'} API-kulcs {setup?.configured[provider==='openai'?'OPENAI_API_KEY':'GEMINI_API_KEY']&&<span className="configured">· már elmentve</span>}<input type="password" autoComplete="off" value={key} onChange={e=>setKey(e.target.value)} placeholder="Üresen hagyva a meglévő kulcs megmarad"/></label><div className="actions"><button className="primary">AI mentése</button><button type="button" disabled={aiTesting} onClick={async()=>{setAiTesting(true);setAiTestMessage('AI tesztelése folyamatban…');try{const res=await api<{ok:boolean;message?:string;error?:string}>('/settings/test-ai',{provider,key:key.trim()||undefined,model:model.trim()||undefined});if(res.ok)setAiTestMessage('✓ Sikeres AI kapcsolat!');else setAiTestMessage(`✕ Hiba: ${res.error}`);}catch(err){setAiTestMessage(`✕ Hiba: ${(err as Error).message}`);}finally{setAiTesting(false);}}}>{aiTesting?'Tesztelés…':'AI Kulcs Tesztelése'}</button></div>{aiTestMessage&&<p className={aiTestMessage.startsWith('✓')?'notice':'error'}>{aiTestMessage}</p>}</form></section>
@@ -37,12 +78,176 @@ export function Settings({run,refresh}:{run:Run;refresh:()=>Promise<void>}){
       <details><summary>📱 1. Teljesen Automata továbbítás (MacroDroid / Tasker Androidon)</summary><p className="muted">Nem kell exportálnod semmit! Telepítsd az ingyenes <strong>MacroDroid</strong> vagy <strong>Tasker</strong> appot Androidra. Állíts be egy triggert: <em>Értesítés érkezett (WhatsApp)</em> → Akció: <em>HTTP POST</em> az alábbi címre:</p><code className="callback-url">https://mybrain.ferkomes.workers.dev/api/import/whatsapp-notification</code><p className="muted">Body (JSON): <code>{"{\"sender\":\"[notification_title]\", \"text\":\"[notification_text]\"}"}</code></p></details>
       <details><summary>📂 2. Kézi megosztás vagy .txt importálás</summary><p className="muted">WhatsApp → Beszélgetés → Menü → Továbbiak → Beszélgetés exportálása (Média nélkül) → Megosztás a MyBrain-nel, vagy az Importálás fülön tallózd be a .txt fájlt.</p></details>
     </section>
-    <section className="setup-step"><span className="step-number">4</span><h3>Zoofy Megbízások & Automata Elfogadás</h3>
-      <p className="muted">Automata szabály: <strong>Bútor összeszerelés</strong> (Meubelmontage) + <strong> legalább €150</strong> + <strong>legfeljebb 15 km</strong> távolság esetén a rendszer azonnal kiemelt, sürgős feladatként rögzíti és előkészíti a holland egyeztető WhatsApp üzenetet.</p>
-      <details><summary>📱 MacroDroid / Tasker beállítás Zoofy értesítésekhez</summary>
-        <p className="muted">Androidon állíts be egy értesítés-figyelőt a Zoofy appra:</p>
+    <section className="setup-step zoofy-section">
+      <span className="step-number">4</span>
+      <div className="zoofy-header">
+        <h3>Zoofy Megbízáskezelő & Automatikus Elfogadás</h3>
+        {setup?.zoofy?.hasToken ? (
+          <span className="badge-connected">✓ Csatlakoztatva (Aktív)</span>
+        ) : (
+          <span className="badge-pending">ℹ️ Kód / Értesítés aktív</span>
+        )}
+      </div>
+      
+      <p className="muted">
+        A rendszer a megadott paraméterek alapján azonnal lecsapja a jövedelmező munkákat, rögzíti a <strong>„Most”</strong> listádban (CRITICAL prioritással), és megírja a holland WhatsApp egyeztető üzenetet az ügyfélnek.
+      </p>
+
+      {/* 1. Authentication & SMS / Token Code Management */}
+      <div className="zoofy-subcard">
+        <h4>🔑 Zoofy Fiók & Belépési Kód</h4>
+        <p className="muted">
+          Ha a Zoofy Pro app kilépne vagy új hitelesítést kérne, itt bármikor beírhatod a kapott SMS kódot vagy tokent:
+        </p>
+        <div className="field-row">
+          <label>Telefonszám (Zoofy Pro)
+            <input 
+              value={zoofyPhone} 
+              onChange={e => setZoofyPhone(e.target.value)} 
+              placeholder="+31 6 ... vagy +36 ..." 
+            />
+          </label>
+          <label>SMS Kód / Auth Token
+            <input 
+              value={zoofyCode} 
+              onChange={e => setZoofyCode(e.target.value)} 
+              placeholder="pl. 123456 vagy token..." 
+            />
+          </label>
+          <button 
+            type="button" 
+            className="primary"
+            onClick={() => void run(async () => {
+              const res = await api<{success:boolean;message:string}>('/settings/zoofy-token', {
+                phone: zoofyPhone,
+                code: zoofyCode
+              });
+              setZoofyCode('');
+              setZoofyStatusMsg(res.message || '✓ Kód elmentve.');
+              await load();
+            })}
+          >
+            Kód mentése
+          </button>
+        </div>
+      </div>
+
+      {/* 2. Search & Auto-Accept Parameters */}
+      <div className="zoofy-subcard">
+        <h4>🎯 Keresési Paraméterek & Munkatípusok</h4>
+        <form onSubmit={e => {
+          e.preventDefault();
+          void run(async () => {
+            await api('/settings', {
+              ZOOFY_PHONE: zoofyPhone,
+              ZOOFY_AUTO_ACCEPT_ENABLED: String(zoofyAutoAccept),
+              ZOOFY_MIN_PRICE: zoofyMinPrice,
+              ZOOFY_MAX_DISTANCE_KM: zoofyMaxDist,
+              ZOOFY_KEYWORDS: zoofyKeywords,
+              ZOOFY_WHATSAPP_TEMPLATE: zoofyTemplate,
+              ZOOFY_AI_INSTRUCTION: zoofyInstruction
+            });
+            await load();
+            setZoofyStatusMsg('✓ Zoofy szabályok és paraméterek sikeresen elmentve!');
+          });
+        }}>
+          <label className="checkbox-label" style={{margin: '12px 0 16px'}}>
+            <input 
+              type="checkbox" 
+              checked={zoofyAutoAccept} 
+              onChange={e => setZoofyAutoAccept(e.target.checked)} 
+            />
+            <strong>Automatikus azonnali elfogadás bekapcsolva</strong> (azonnal kiemeli a feltételeknek megfelelő munkákat)
+          </label>
+
+          <div className="field-row">
+            <label>Minimum bevétel (€)
+              <input 
+                type="number" 
+                value={zoofyMinPrice} 
+                onChange={e => setZoofyMinPrice(e.target.value)} 
+                min="0" 
+                step="5"
+                placeholder="150" 
+              />
+            </label>
+            <label>Maximum távolság (km)
+              <input 
+                type="number" 
+                value={zoofyMaxDist} 
+                onChange={e => setZoofyMaxDist(e.target.value)} 
+                min="1" 
+                max="100"
+                placeholder="15" 
+              />
+            </label>
+          </div>
+
+          <label>Keresett Munkatípusok / Kulcsszavak (vesszővel elválasztva)
+            <input 
+              value={zoofyKeywords} 
+              onChange={e => setZoofyKeywords(e.target.value)} 
+              placeholder="meubel, bútor, ikea, pax, villanyszerelés, elektra, loodgieter, szerelés" 
+            />
+          </label>
+          <p className="tag-input-hint">
+            💡 <em>Tipp: Ide bármikor beírhatsz új területeket (pl. villanyszerelés, elektra, konyha, csapcsere), és a rendszer azonnal azokat is figyelni és fogadni fogja!</em>
+          </p>
+
+          <label>AI Szabály leírása (Prompt)
+            <input 
+              value={zoofyInstruction} 
+              onChange={e => setZoofyInstruction(e.target.value)} 
+              placeholder="Bútor és villanyszerelési munkák kiemelt kezelése..." 
+            />
+          </label>
+
+          <label>Holland WhatsApp válasz sablon (Ügyféllel való időpont-egyeztetéshez)
+            <textarea 
+              rows={3} 
+              value={zoofyTemplate} 
+              onChange={e => setZoofyTemplate(e.target.value)} 
+            />
+          </label>
+
+          <div className="actions" style={{marginTop: '16px'}}>
+            <button className="primary">Szabályok Mentése</button>
+            <button 
+              type="button" 
+              disabled={zoofyTesting}
+              onClick={async () => {
+                setZoofyTesting(true);
+                setZoofyStatusMsg('Teszt megbízás futtatása…');
+                try {
+                  const testRes = await api<{success:boolean;details?:any;whatsapp_template?:string}>('/import/zoofy-notification', {
+                    sender: 'Zoofy Pro Teszt',
+                    text: `Nieuwe klus: ${zoofyKeywords.split(',')[0].trim()} in Amsterdam (8 km) - Verdien €${Number(zoofyMinPrice) + 20}`,
+                    app: 'zoofy'
+                  });
+                  if (testRes.success) {
+                    setZoofyStatusMsg(`✓ Teszt sikeres! Megbízás automatikusan elfogadva (€${Number(zoofyMinPrice) + 20}, 8 km). WhatsApp sablon kész.`);
+                  } else {
+                    setZoofyStatusMsg('✕ Teszt nem sikerült.');
+                  }
+                } catch (err) {
+                  setZoofyStatusMsg(`✕ Hiba: ${(err as Error).message}`);
+                } finally {
+                  setZoofyTesting(false);
+                }
+              }}
+            >
+              {zoofyTesting ? 'Tesztelés…' : 'Szabály & AI Tesztelése'}
+            </button>
+          </div>
+          {zoofyStatusMsg && <p className={zoofyStatusMsg.startsWith('✓') ? 'notice' : 'error'}>{zoofyStatusMsg}</p>}
+        </form>
+      </div>
+
+      <details style={{marginTop: '18px'}}>
+        <summary>📱 MacroDroid / Értesítés-továbbítás webhook URL</summary>
+        <p className="muted">Ha Android értesítés-figyelővel is továbbítanád az üzeneteket:</p>
         <code className="callback-url">https://mybrain.ferkomes.workers.dev/api/import/zoofy-notification</code>
-        <p className="muted">HTTP Body (JSON): <code>{"{\"sender\":\"[notification_title]\", \"text\":\"[notification_text]\", \"app\":\"[notification_package_name]\"}"}</code></p>
+        <p className="muted">HTTP Body (JSON): <code>{"{\"sender\":\"[notification_title]\", \"text\":\"[notification_text]\", \"app\":\"zoofy\"}"}</code></p>
       </details>
     </section>
     <label className="checkbox-label"><input type="checkbox" checked={setup?.learnDrafts||false} onChange={e=>void run(async()=>{await api('/memory/preferences',{learnDrafts:e.target.checked});await load();})}/> Tanuljon a mentett választervezeteimből rövid példákkal</label><p className="muted">Legfeljebb 100 rövid példa marad meg; egy elemzés legfeljebb 3 releváns példát kap. A Memória nézetben keresheted és törölheted őket. A bejövő üzenetekből nem lesz automatikusan személyes szabály.</p>

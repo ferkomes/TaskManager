@@ -1,6 +1,18 @@
 import { DataSourceAdapter } from './base';
 import { EventRecord } from '../types';
 
+export interface ZoofyConfig {
+  apiKey?: string;
+  authToken?: string;
+  phone?: string;
+  autoAcceptEnabled?: boolean | string;
+  minPrice?: number | string;
+  maxDistanceKm?: number | string;
+  keywords?: string;
+  whatsappTemplate?: string;
+  aiInstruction?: string;
+}
+
 export interface ZoofyJobDetails {
   service: string;
   price: number | null;
@@ -9,27 +21,52 @@ export interface ZoofyJobDetails {
   customerName?: string;
   customerPhone?: string;
   preferredDate?: string;
-  isFurniture: boolean;
+  isMatchingWorkType: boolean;
+  matchedKeywords: string[];
   meetsAutoAcceptCriteria: boolean;
   autoAcceptReason: string;
   whatsappTemplate: string;
+  minPrice: number;
+  maxDistanceKm: number;
 }
 
 export class ZoofyAdapter extends DataSourceAdapter {
   sourceName = 'zoofy';
-  private apiKey?: string;
-  private minPrice: number;
-  private maxDistanceKm: number;
+  apiKey?: string;
+  authToken?: string;
+  phone?: string;
+  autoAcceptEnabled: boolean;
+  minPrice: number;
+  maxDistanceKm: number;
+  keywords: string[];
+  whatsappTemplate: string;
+  aiInstruction?: string;
 
-  constructor(config: { apiKey?: string; minPrice?: number; maxDistanceKm?: number } = {}) {
+  constructor(config: ZoofyConfig = {}) {
     super();
     this.apiKey = config.apiKey;
-    this.minPrice = config.minPrice ?? 150;
-    this.maxDistanceKm = config.maxDistanceKm ?? 15;
+    this.authToken = config.authToken;
+    this.phone = config.phone;
+    this.autoAcceptEnabled = config.autoAcceptEnabled !== false && config.autoAcceptEnabled !== 'false';
+    this.minPrice = Number(config.minPrice || 150);
+    this.maxDistanceKm = Number(config.maxDistanceKm || 15);
+    
+    const rawKeywords = config.keywords || 'meubel, bútor, ikea, pax, kast, tafel, stoel, bed, montage, monteren, assembly, villanyszerelés, elektra, elektricien, loodgieter';
+    this.keywords = rawKeywords.split(',').map(k => k.trim().toLowerCase()).filter(Boolean);
+
+    this.whatsappTemplate = config.whatsappTemplate || 
+      'Beste, bedankt voor de opdracht via Zoofy! Ik heb de klus zojuist geaccepteerd. Schikt het opgegeven moment voor u, of zullen we even overleggen over een andere dag/tijd die u beter past? Met vriendelijke groet, Ferenc';
+    this.aiInstruction = config.aiInstruction;
   }
 
   async testConnection(): Promise<{ success: boolean; message: string }> {
-    return { success: true, message: 'Zoofy adapter active (Push notification & Auto-Accept enabled).' };
+    const hasAuth = !!this.authToken || !!this.apiKey;
+    return {
+      success: true,
+      message: hasAuth
+        ? `Zoofy aktív (Fiók csatlakoztatva: ${this.phone || 'Bejelentkezve'}, Min. ár: €${this.minPrice}, Max. távolság: ${this.maxDistanceKm}km).`
+        : `Zoofy figyelő aktív (Min. ár: €${this.minPrice}, Max. távolság: ${this.maxDistanceKm}km, SMS/Token kód megadható a beállításokban).`
+    };
   }
 
   async fetchNewEvents(): Promise<EventRecord[]> {
@@ -37,20 +74,30 @@ export class ZoofyAdapter extends DataSourceAdapter {
   }
 
   /**
-   * Parse details from notification text
+   * Parse details from notification text using dynamic keywords and rules
    */
   parseDetails(text: string): ZoofyJobDetails {
     const lower = text.toLowerCase();
 
-    // 1. Service / Work type detection
-    const isFurniture = /meubel|bútor|kast|ikea|pax|tafel|stoel|bed|montage|monteren|assembly|in elkaar zetten/i.test(text);
+    // 1. Check keyword matches
+    const matchedKeywords = this.keywords.filter(kw => lower.includes(kw));
+    const isMatchingWorkType = matchedKeywords.length > 0;
+
+    // Determine readable service category name
     let service = 'Klus / Megbízás';
-    if (/meubelmontage|meubels monteren|bútor/i.test(text)) service = 'Bútor összeszerelés (Meubelmontage)';
-    else if (/ikea|pax/i.test(text)) service = 'IKEA / PAX Bútorszerelés';
-    else if (/keuken/i.test(text)) service = 'Konyhaszerelés (Keukenmontage)';
-    else if (/loodgieter/i.test(text)) service = 'Vízszerelés (Loodgieter)';
-    else if (/elektra|elektricien/i.test(text)) service = 'Villanyszerelés (Elektra)';
-    else if (/tuin/i.test(text)) service = 'Kertgondozás (Tuin)';
+    if (/elektra|elektricien|villanyszerelés|világítás|dugalj/i.test(text)) {
+      service = 'Villanyszerelés (Elektra)';
+    } else if (/meubelmontage|meubels monteren|bútor|kast|ikea|pax|bed|tafel/i.test(text)) {
+      service = 'Bútor összeszerelés (Meubelmontage)';
+    } else if (/keuken/i.test(text)) {
+      service = 'Konyhaszerelés (Keukenmontage)';
+    } else if (/loodgieter|csőtörés|lefolyó|csap/i.test(text)) {
+      service = 'Vízszerelés (Loodgieter)';
+    } else if (/tuin/i.test(text)) {
+      service = 'Kertgondozás (Tuin)';
+    } else if (matchedKeywords.length > 0) {
+      service = `Megbízás (${matchedKeywords[0]})`;
+    }
 
     // 2. Price extraction: looks for €150, 150€, € 150, 150 EUR, 150 euro
     let price: number | null = null;
@@ -67,42 +114,42 @@ export class ZoofyAdapter extends DataSourceAdapter {
       distanceKm = parseFloat(distMatch[1].replace(',', '.'));
     }
 
-    // 4. Location extraction: looks for "in [City]" or city names
+    // 4. Location extraction: looks for "in [City]"
     let location: string | null = null;
     const locMatch = text.match(/\bin\s+([A-ZÁÉÍÓÖŐÚÜŰa-záéíóöőúüű\s-]+?)(?=[,\.\(\-\n]|\s+\d|\s+voor|\s+om|$)/);
     if (locMatch) {
       location = locMatch[1].trim();
     }
 
-    // 5. Auto-accept criteria check: Furniture AND Price >= 150 EUR AND Distance <= 15 km
+    // 5. Auto-accept criteria check
     const priceOk = price !== null && price >= this.minPrice;
     const distOk = distanceKm === null || distanceKm <= this.maxDistanceKm;
-    const meetsAutoAcceptCriteria = isFurniture && priceOk && distOk;
+    const meetsAutoAcceptCriteria = this.autoAcceptEnabled && isMatchingWorkType && priceOk && distOk;
 
     let autoAcceptReason = '';
     if (meetsAutoAcceptCriteria) {
-      autoAcceptReason = `✅ Megfelel az auto-accept szabálynak: Bútor szerelés, €${price} (>=${this.minPrice}€), ${distanceKm ? distanceKm + ' km' : 'közeli'} (<=${this.maxDistanceKm}km).`;
+      autoAcceptReason = `✅ Megfelel az auto-accept szabálynak: ${service}, €${price} (>=${this.minPrice}€), ${distanceKm ? distanceKm + ' km' : 'közeli'} (<=${this.maxDistanceKm}km).`;
     } else {
       const reasons: string[] = [];
-      if (!isFurniture) reasons.push('nem bútoros munka');
+      if (!this.autoAcceptEnabled) reasons.push('auto-accept kikapcsolva');
+      if (!isMatchingWorkType) reasons.push('nem egyezik a megadott kulcsszavakkal');
       if (price !== null && price < this.minPrice) reasons.push(`ár alacsonyabb (€${price} < €${this.minPrice})`);
       if (distanceKm !== null && distanceKm > this.maxDistanceKm) reasons.push(`távolság nagyobb (${distanceKm}km > ${this.maxDistanceKm}km)`);
       autoAcceptReason = `ℹ️ Kézi áttekintést igényel (${reasons.join(', ')}).`;
     }
-
-    // 6. Pre-generated polite Dutch WhatsApp template for the customer
-    const greeting = 'Beste,';
-    const whatsappTemplate = `${greeting} bedankt voor de opdracht via Zoofy! Ik heb de klus zojuist geaccepteerd. Schikt het opgegeven moment voor u, of zullen we even overleggen over een andere dag/tijd die u beter past? Met vriendelijke groet, Ferenc`;
 
     return {
       service,
       price,
       distanceKm,
       location,
-      isFurniture,
+      isMatchingWorkType,
+      matchedKeywords,
       meetsAutoAcceptCriteria,
       autoAcceptReason,
-      whatsappTemplate,
+      whatsappTemplate: this.whatsappTemplate,
+      minPrice: this.minPrice,
+      maxDistanceKm: this.maxDistanceKm
     };
   }
 
@@ -131,6 +178,7 @@ export class ZoofyAdapter extends DataSourceAdapter {
         distanceKm: details.distanceKm,
         location: details.location,
         whatsappTemplate: details.whatsappTemplate,
+        autoAcceptReason: details.autoAcceptReason,
       },
     };
   }

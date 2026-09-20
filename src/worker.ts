@@ -388,6 +388,17 @@ app.get('/api/adapters/status', async (c) => {
   const lodgify = new LodgifyAdapter({ apiKey: env.LODGIFY_API_KEY });
   const cleaning = new CleaningCalendarAdapter({ icsUrl: env.CLEANING_CALENDAR_ICS_URL });
   const whatsapp = new WhatsAppAdapter({ verifyToken: env.WHATSAPP_VERIFY_TOKEN, accessToken: env.WHATSAPP_ACCESS_TOKEN });
+  const zoofy = new ZoofyAdapter({
+      apiKey: c.env.ZOOFY_API_KEY,
+      authToken: c.env.ZOOFY_AUTH_TOKEN,
+      phone: c.env.ZOOFY_PHONE,
+      autoAcceptEnabled: c.env.ZOOFY_AUTO_ACCEPT_ENABLED,
+      minPrice: c.env.ZOOFY_MIN_PRICE,
+      maxDistanceKm: c.env.ZOOFY_MAX_DISTANCE_KM,
+      keywords: c.env.ZOOFY_KEYWORDS,
+      whatsappTemplate: c.env.ZOOFY_WHATSAPP_TEMPLATE,
+      aiInstruction: c.env.ZOOFY_AI_INSTRUCTION
+    });
 
   const statuses = {
     gmail: await gmail.testConnection(),
@@ -395,6 +406,7 @@ app.get('/api/adapters/status', async (c) => {
     lodgify: await lodgify.testConnection(),
     cleaning: await cleaning.testConnection(),
     whatsapp: await whatsapp.testConnection(),
+    zoofy: await zoofy.testConnection(),
     manual: await new ManualAdapter().testConnection(),
     airbnb: {success:!!env.LODGIFY_API_KEY,message:'Airbnb messages arrive through the Lodgify channel manager.'},
     simulationFeed: { success: true, message: 'Simulated multi-source feed active with user scenarios.' },
@@ -407,8 +419,30 @@ app.get('/api/adapters/status', async (c) => {
 app.get('/api/settings', async c => {
   const saved=await readSettings(c.env);const env={...c.env,...saved};
   const preference=await c.env.DB.prepare("SELECT value FROM system_settings WHERE key='learn_drafts'").first<{value:string}>();
-  return c.json({configured:Object.fromEntries(settingKeys.map(key=>[key,Boolean((env as any)[key])])),provider:env.AI_PROVIDER || 'gemini',model:env.AI_PROVIDER==='openai'?env.OPENAI_MODEL:env.GEMINI_MODEL,demo:env.ENVIRONMENT==='development',aiReady:hasAI(env),googleReady:!!env.GOOGLE_REFRESH_TOKEN,googleConfigured:!!env.GOOGLE_CLIENT_ID && !!env.GOOGLE_CLIENT_SECRET,callbackUrl:googleRedirect(env,c.req.url),learnDrafts:preference?.value==='true',sync:await syncStatus(env)});
+  return c.json({configured:Object.fromEntries(settingKeys.map(key=>[key,Boolean((env as any)[key])])),provider:env.AI_PROVIDER || 'gemini',model:env.AI_PROVIDER==='openai'?env.OPENAI_MODEL:env.GEMINI_MODEL,demo:env.ENVIRONMENT==='development',aiReady:hasAI(env),googleReady:!!env.GOOGLE_REFRESH_TOKEN,googleConfigured:!!env.GOOGLE_CLIENT_ID && !!env.GOOGLE_CLIENT_SECRET,callbackUrl:googleRedirect(env,c.req.url),learnDrafts:preference?.value==='true',
+    sync:await syncStatus(env),
+    zoofy: {
+      configured: Boolean(env.ZOOFY_AUTH_TOKEN || env.ZOOFY_API_KEY),
+      phone: env.ZOOFY_PHONE || '',
+      hasToken: Boolean(env.ZOOFY_AUTH_TOKEN || env.ZOOFY_API_KEY),
+      autoAccept: env.ZOOFY_AUTO_ACCEPT_ENABLED !== 'false',
+      minPrice: env.ZOOFY_MIN_PRICE || '150',
+      maxDistanceKm: env.ZOOFY_MAX_DISTANCE_KM || '15',
+      keywords: env.ZOOFY_KEYWORDS || 'meubel, bútor, ikea, pax, kast, tafel, stoel, bed, montage, monteren, assembly, villanyszerelés, elektra, elektricien, loodgieter',
+      whatsappTemplate: env.ZOOFY_WHATSAPP_TEMPLATE || 'Beste, bedankt voor de opdracht via Zoofy! Ik heb de klus zojuist geaccepteerd. Schikt het opgegeven moment voor u, of zullen we even overleggen over een andere dag/tijd die u beter past? Met vriendelijke groet, Ferenc',
+      aiInstruction: env.ZOOFY_AI_INSTRUCTION || 'Bútor összeszerelés és villanyszerelés munkák automatikus elfogadása 150 EUR felett és 15 km-en belül.'
+    }});
 });
+app.post('/api/settings/zoofy-token', async c => {
+  const body = await c.req.json<{ phone?: string; token?: string; code?: string }>();
+  if (!c.env.APP_SECRET || c.env.APP_SECRET.length < 32) return c.json({ error: 'Szerver APP_SECRET hiányzik.' }, 400);
+  const patch: Record<string, string> = {};
+  if (body.phone !== undefined) patch.ZOOFY_PHONE = body.phone.trim();
+  if (body.token !== undefined || body.code !== undefined) patch.ZOOFY_AUTH_TOKEN = (body.token || body.code || '').trim();
+  await saveSettings(c.env, patch);
+  return c.json({ success: true, message: 'Zoofy bejelentkezési adatok sikeresen elmentve!' });
+});
+
 app.post('/api/settings', async c => {
   const body = await c.req.json<Record<string,string>>();
   if (!body || Array.isArray(body) || typeof body !== 'object') return c.json({error:'Invalid settings'},400);
@@ -560,8 +594,14 @@ app.post('/api/import/whatsapp-notification', async c => {
   if (isZoofy) {
     const zoofy = new ZoofyAdapter({
       apiKey: c.env.ZOOFY_API_KEY,
-      minPrice: Number(c.env.ZOOFY_MIN_PRICE || 150),
-      maxDistanceKm: Number(c.env.ZOOFY_MAX_DISTANCE_KM || 15)
+      authToken: c.env.ZOOFY_AUTH_TOKEN,
+      phone: c.env.ZOOFY_PHONE,
+      autoAcceptEnabled: c.env.ZOOFY_AUTO_ACCEPT_ENABLED,
+      minPrice: c.env.ZOOFY_MIN_PRICE,
+      maxDistanceKm: c.env.ZOOFY_MAX_DISTANCE_KM,
+      keywords: c.env.ZOOFY_KEYWORDS,
+      whatsappTemplate: c.env.ZOOFY_WHATSAPP_TEMPLATE,
+      aiInstruction: c.env.ZOOFY_AI_INSTRUCTION
     });
     event = zoofy.createEvent(sender, body.text);
   } else {
@@ -589,10 +629,16 @@ app.post('/api/import/zoofy-notification', async c => {
   if (!body.text || typeof body.text !== 'string') return c.json({ error: 'Értesítés szövege kötelező.' }, 400);
   const sender = body.sender || 'Zoofy Pro';
   const zoofy = new ZoofyAdapter({
-    apiKey: c.env.ZOOFY_API_KEY,
-    minPrice: Number(c.env.ZOOFY_MIN_PRICE || 150),
-    maxDistanceKm: Number(c.env.ZOOFY_MAX_DISTANCE_KM || 15)
-  });
+      apiKey: c.env.ZOOFY_API_KEY,
+      authToken: c.env.ZOOFY_AUTH_TOKEN,
+      phone: c.env.ZOOFY_PHONE,
+      autoAcceptEnabled: c.env.ZOOFY_AUTO_ACCEPT_ENABLED,
+      minPrice: c.env.ZOOFY_MIN_PRICE,
+      maxDistanceKm: c.env.ZOOFY_MAX_DISTANCE_KM,
+      keywords: c.env.ZOOFY_KEYWORDS,
+      whatsappTemplate: c.env.ZOOFY_WHATSAPP_TEMPLATE,
+      aiInstruction: c.env.ZOOFY_AI_INSTRUCTION
+    });
   const event = zoofy.createEvent(sender, body.text);
   const added = await enqueueEvents(c.env.DB, [event]);
   const { store, aiEngine } = getServices(c.env);

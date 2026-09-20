@@ -21,3 +21,11 @@
 .dialog-actions-row button{font-size:12px}
 .task-reason{font-size:12px;color:#8e91a0;margin:4px 0 8px}
 
+
+.zoofy-section{background:#161820;border-color:#383b49}
+.zoofy-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px}
+.badge-connected{font-size:11px;font-weight:600;padding:4px 10px;background:#133324;color:#4ade80;border:1px solid #166534;border-radius:12px}
+.badge-pending{font-size:11px;font-weight:600;padding:4px 10px;background:#2d2616;color:#facc15;border:1px solid #854d0e;border-radius:12px}
+.zoofy-subcard{margin:16px 0;padding:16px;background:#111217;border:1px solid #2d2f3b;border-radius:10px}
+.zoofy-subcard h4{margin:0 0 10px;font-size:14px;color:#e2e4ed}
+.tag-input-hint{font-size:11px;color:#9496a8;margin:6px 0 14px}

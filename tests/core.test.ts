@@ -161,3 +161,30 @@ test('Zoofy furniture leads >=150 EUR and <=15 km are auto-accepted with CRITICA
   const nonQualifyingEvent = adapter.createEvent('Zoofy Pro', lowPriceText);
   assert.equal(nonQualifyingEvent.metadata?.isAutoAccepted, false);
 });
+
+test('Zoofy adapter respects custom keywords (e.g. villanyszerelés / elektra) and custom WhatsApp templates', async () => {
+  const { ZoofyAdapter } = await import('../src/adapters/zoofy');
+  const customAdapter = new ZoofyAdapter({
+    minPrice: 200,
+    maxDistanceKm: 25,
+    keywords: 'villanyszerelés, elektra, világítás',
+    whatsappTemplate: 'Hallo, ik kom graag uw elektra klus uitvoeren. Schikt morgen? Mvg, Ferenc'
+  });
+
+  const electricalText = 'Nieuwe klus: Villanyszerelés (Elektra groepenkast) in Haarlem (18 km) - Verdien €250';
+  const event = customAdapter.createEvent('Zoofy Pro', electricalText);
+
+  assert.equal(event.source, 'zoofy');
+  assert.equal(event.metadata?.isAutoAccepted, true);
+  assert.equal(event.metadata?.price, 250);
+  assert.equal(event.metadata?.distanceKm, 18);
+  assert.match(event.metadata?.service, /Villanyszerelés/);
+  assert.match(event.metadata?.whatsappTemplate, /elektra klus/);
+
+  const ai = new AIEngine();
+  const analysis = ai.fallbackAnalysis(event);
+  assert.equal(analysis.action_required, true);
+  assert.equal(analysis.priority, 'CRITICAL');
+  assert.match(analysis.title, /Villanyszerelés/);
+  assert.match(analysis.draft_reply, /elektra klus/);
+});

@@ -198,31 +198,36 @@ RESPONSE JSON SCHEMA (Return strictly this JSON object):
     // Zoofy Lead Auto-Accept & Processing
     if (event.source === 'zoofy' || text.includes('zoofy') || sender.includes('zoofy')) {
       const details = event.metadata?.zoofyDetails;
-      const isFurniture = details?.isFurniture ?? /meubel|bútor|kast|ikea|pax|tafel|stoel|bed|montage|monteren|assembly/i.test(text);
+      const isMatching = details?.isMatchingWorkType ?? /meubel|bútor|kast|ikea|pax|tafel|stoel|bed|montage|monteren|assembly|villanyszerelés|elektra|elektricien|loodgieter/i.test(text);
       const price = details?.price ?? (text.match(/€\s*(\d+)/)?.[1] ? Number(text.match(/€\s*(\d+)/)?.[1]) : null);
       const distanceKm = details?.distanceKm ?? (text.match(/(\d+(?:\.\d+)?)\s*km/)?.[1] ? Number(text.match(/(\d+(?:\.\d+)?)\s*km/)?.[1]) : null);
-      const meetsAuto = details?.meetsAutoAcceptCriteria ?? (isFurniture && (price === null || price >= 150) && (distanceKm === null || distanceKm <= 15));
+      const minP = details?.minPrice ?? 150;
+      const maxD = details?.maxDistanceKm ?? 15;
+      const meetsAuto = details?.meetsAutoAcceptCriteria ?? (isMatching && (price === null || price >= minP) && (distanceKm === null || distanceKm <= maxD));
+      const serviceName = details?.service || (isMatching ? 'Bútor / Műszaki szerelés' : 'Zoofy megbízás');
+
+      const whatsappReply = details?.whatsappTemplate || 'Beste, bedankt voor de opdracht via Zoofy! Ik heb de klus zojuist geaccepteerd. Schikt het opgegeven moment voor u, of zullen we even overleggen over een andere dag/tijd die u beter past? Met vriendelijke groet, Ferenc';
 
       return {
         action_required: true,
         title: meetsAuto
-          ? '🎯 ZOOFY [AUTO-ELFOGADVA]: Bútor szerelés (' + (price ? '€' + price : '€150+') + ', ' + (distanceKm ? distanceKm + ' km' : '<15 km') + ')'
-          : 'Zoofy megbízás: ' + event.raw_content.slice(0, 50) + '...',
+          ? `🎯 ZOOFY [AUTO-ELFOGADVA]: ${serviceName} (${price ? '€' + price : '€' + minP + '+'}, ${distanceKm ? distanceKm + ' km' : '<' + maxD + ' km'})`
+          : `Zoofy megbízás: ${serviceName}${price ? ' - €' + price : ''}`,
         summary: meetsAuto
-          ? 'Zoofy megbízás automatikusan elfogadva: Bútor szerelés, €' + (price || '150+') + ' (>=150€), ' + (distanceKm ? distanceKm + ' km' : 'közel') + ' (<=15km). Eredeti: ' + event.raw_content
-          : 'Új Zoofy megbízási értesítés: ' + event.raw_content,
+          ? `Zoofy megbízás automatikusan elfogadva: ${serviceName}, €${price || minP + '+'} (>=${minP}€), ${distanceKm ? distanceKm + ' km' : 'közel'} (<=${maxD}km). Eredeti: ${event.raw_content}`
+          : `Új Zoofy megbízási értesítés: ${event.raw_content}`,
         project_category: 'Klusjes / Zoofy',
         priority: meetsAuto ? 'CRITICAL' : 'HIGH',
         deadline: new Date(Date.now() + 2 * 3600 * 1000).toISOString(),
         suggested_action: 'Időpont egyeztetés az ügyféllel WhatsAppon',
-        draft_reply: 'Beste, bedankt voor de opdracht via Zoofy! Ik heb de klus zojuist geaccepteerd. Schikt het opgegeven moment voor u, of zullen we even overleggen over een andere dag/tijd die u beter past? Met vriendelijke groet, Ferenc',
+        draft_reply: whatsappReply,
         next_step: 'Nyisd meg a WhatsAppot és küldd el az egyeztető üzenetet az ügyfélnek.',
         waiting_for: 'Zoofy Ügyfél (Időpont visszaigazolás)',
         people_involved: ['Zoofy Ügyfél'],
         reservation_property: null,
         confidence: 0.95,
         priority_reason: meetsAuto
-          ? 'Kiemelten jövedelmező közeli megbízás (>=150€, <=15km), azonnali egyeztetés szükséges.'
+          ? `Megfelel a beállított szabályoknak (>=${minP}€, <=${maxD}km), azonnali egyeztetés szükséges.`
           : 'Új beérkezett megbízás, áttekintést igényel.',
         suggested_status: 'now'
       };
