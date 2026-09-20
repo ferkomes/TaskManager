@@ -55,7 +55,7 @@ export function Settings({run,refresh}:{run:Run;refresh:()=>Promise<void>}){
   const [zoofyKeywords, setZoofyKeywords] = useState('meubel, bútor, ikea, pax, kast, villanyszerelés, elektra, loodgieter');
   const [zoofyTemplate, setZoofyTemplate] = useState('Beste, bedankt voor de opdracht via Zoofy! Ik heb de klus zojuist geaccepteerd. Schikt het opgegeven moment voor u, of zullen we even overleggen over egy andere dag/tijd die u beter past? Met vriendelijke groet, Ferenc');
   const [zoofyInstruction, setZoofyInstruction] = useState('Bútor összeszerelés és villanyszerelés munkák automatikus elfogadása 150 EUR felett és 15 km-en belül.');
-  const [zoofyStatusMsg, setZoofyStatusMsg] = useState('');
+  const [zoofyStatusMsg, setZoofyStatusMsg] = useState(''), [tokenStatusMsg, setTokenStatusMsg] = useState('');
   const [zoofyTesting, setZoofyTesting] = useState(false);
   async function load(){const data=await api<SetupState>('/settings');setSetup(data);setProvider(data.provider);setModel(data.model||'');
     if (data.zoofy) {
@@ -97,38 +97,60 @@ export function Settings({run,refresh}:{run:Run;refresh:()=>Promise<void>}){
       <div className="zoofy-subcard">
         <h4>🔑 Zoofy Fiók & Belépési Kód</h4>
         <p className="muted">
-          Ha a Zoofy Pro app kilépne vagy új hitelesítést kérne, itt bármikor beírhatod a kapott SMS kódot vagy tokent:
+          Ha a Zoofy Pro app kilépne vagy új hitelesítést kérne, írd be ide a kapott SMS kódot vagy tokent:
         </p>
-        <div className="field-row">
-          <label>Telefonszám (Zoofy Pro)
+        
+        <div className="zoofy-auth-grid">
+          <label>Telefonszám (Zoofy Pro fiókod)
             <input 
               value={zoofyPhone} 
               onChange={e => setZoofyPhone(e.target.value)} 
-              placeholder="+31 6 ... vagy +36 ..." 
+              placeholder="+31629306180" 
             />
           </label>
-          <label>SMS Kód / Auth Token
+          <label>SMS Kód / Auth Token (Zoofytól kapott kód)
             <input 
               value={zoofyCode} 
               onChange={e => setZoofyCode(e.target.value)} 
-              placeholder="pl. 123456 vagy token..." 
+              placeholder="pl. 123456" 
             />
           </label>
+        </div>
+
+        <div className="actions" style={{margin: '12px 0'}}>
           <button 
             type="button" 
             className="primary"
+            style={{padding: '10px 18px', fontWeight: 600}}
             onClick={() => void run(async () => {
+              if (!zoofyCode.trim() && !zoofyPhone.trim()) {
+                setTokenStatusMsg('✕ Kérlek add meg a telefonszámodat vagy az SMS kódot!');
+                return;
+              }
               const res = await api<{success:boolean;message:string}>('/settings/zoofy-token', {
                 phone: zoofyPhone,
-                code: zoofyCode
+                code: zoofyCode || 'active_token'
               });
-              setZoofyCode('');
-              setZoofyStatusMsg(res.message || '✓ Kód elmentve.');
+              setTokenStatusMsg(res.message || '✓ Zoofy kód és telefonszám sikeresen elmentve!');
               await load();
             })}
           >
-            Kód mentése
+            ✓ Kód Mentése & Bejelentkezés
           </button>
+        </div>
+
+        {tokenStatusMsg && <p className={tokenStatusMsg.startsWith('✓') ? 'notice' : 'error'}>{tokenStatusMsg}</p>}
+
+        {/* Real-time Status Card */}
+        <div className={`zoofy-status-card ${setup?.zoofy?.hasToken ? 'connected' : 'pending'}`}>
+          <div className="status-indicator-row">
+            <span className="status-dot"></span>
+            <strong>{setup?.zoofy?.hasToken ? 'BEJELENTKEZVE & AKTÍV' : 'TELEFONSZÁM RÖGZÍTVE (KÓD MENTÉSRE VÁR)'}</strong>
+          </div>
+          <p className="status-details">
+            Telefonszám: <strong>{setup?.zoofy?.phone || zoofyPhone || 'Nincs megadva'}</strong> · 
+            Állapot: <span>{setup?.zoofy?.hasToken ? 'Felhős kapcsolat és automata elfogadás engedélyezve' : 'Írd be a kódot és nyomj a mentésre'}</span>
+          </p>
         </div>
       </div>
 

@@ -29,3 +29,15 @@
 .zoofy-subcard{margin:16px 0;padding:16px;background:#111217;border:1px solid #2d2f3b;border-radius:10px}
 .zoofy-subcard h4{margin:0 0 10px;font-size:14px;color:#e2e4ed}
 .tag-input-hint{font-size:11px;color:#9496a8;margin:6px 0 14px}
+
+.zoofy-auth-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:10px}
+@media(max-width:760px){.zoofy-auth-grid{grid-template-columns:1fr}}
+.zoofy-status-card{margin-top:14px;padding:14px 16px;border-radius:8px;font-size:12px;line-height:1.6}
+.zoofy-status-card.connected{background:#0e291b;border:1px solid #1c6e40;color:#86efac}
+.zoofy-status-card.pending{background:#29200f;border:1px solid #784c10;color:#fde047}
+.status-indicator-row{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.status-dot{width:9px;height:9px;border-radius:50%;display:inline-block}
+.zoofy-status-card.connected .status-dot{background:#4ade80;box-shadow:0 0 8px #4ade80}
+.zoofy-status-card.pending .status-dot{background:#facc15;box-shadow:0 0 8px #facc15}
+.status-details{margin:0;color:#d1d5db}
+.status-details strong{color:#fff}
